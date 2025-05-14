@@ -24,6 +24,11 @@ const userSchema = new mongoose.Schema({
     enum: ["Student", "Admin"],
     default: "Student", // default role is Student
   },
+  //for forget password functionality 
+  resetPasswordToken: String,
+  resetPasswordExpires: Date,
+  resetOTP: String,
+  otpExpiry: Date
 });
 
 module.exports = mongoose.model("User", userSchema);

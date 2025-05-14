@@ -1,7 +1,7 @@
 const express = require('express');
 const router = express.Router();
 
-const {login, signup, logout} = require('../controllers/Auth');
+const {login, signup, logout, forgotPassword, resetPassword, sendOTP, verifyOTP} = require('../controllers/Auth');
 const {auth, isStudent, isAdmin} = require('../middlewares/auth');
 
 router.post('/login', login);
@@ -28,5 +28,11 @@ router.get('/admin', auth, isAdmin, (req, res) => {
         message: "welcome to the protected route for Admin",
     })
 })
+
+router.post('/forgot-password', forgotPassword);
+// router.post('/verify-otp', verifyOTP);
+router.post('/reset-password', resetPassword);
+router.post('/send-otp', sendOTP);
+router.post('/verify-otp', verifyOTP);
 
 module.exports = router;
