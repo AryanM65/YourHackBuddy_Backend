@@ -1,4 +1,6 @@
 const User = require('../Models/User');
+const Hackathon = require('../Models/Hackathon');
+const Organization = require('../Models/Organization');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
@@ -7,20 +9,34 @@ const {generateOTP, generateToken} = require('../utils/tokenUtils');
 
 require('dotenv').config();
 
-
 exports.signup = async (req, res) => {
+  console.log(req.body)
   try {
-    const { name, username, email, password, role} = req.body;
+    const { 
+      name, 
+      username, 
+      email, 
+      password, 
+      role, 
+      skills, 
+      bio, 
+      linkedin, 
+      github, 
+      institute, 
+      designation, 
+      profilePicture,
+      organizationEmail // 👈 Changed from organizationName to organizationEmail
+    } = req.body;
 
     // Validate required fields
-    if (!name || !username || !email || !password) {
+    if (!name || !username || !email || !password || !role) {
       return res.status(400).json({
         status: false,
-        message: "All fields are required (name, username, email, password, institute)",
+        message: "All fields are required (name, username, email, password, role)",
       });
     }
 
-    // Check for existing user by email or username
+    // Check for existing user
     const existingUser = await User.findOne({
       $or: [{ email }, { username }],
     });
@@ -32,7 +48,30 @@ exports.signup = async (req, res) => {
       });
     }
 
-    // Hash the password
+    // Check organization existence if role is Organization
+    let organizationId = null;
+
+    if (role === "Organization") {
+      if (!organizationEmail) {
+        return res.status(400).json({
+          status: false,
+          message: "Organization email is required for organizer signup",
+        });
+      }
+
+      // Find organization by email instead of name
+      const organization = await Organization.findOne({ email: organizationEmail });
+      if (!organization) {
+        return res.status(400).json({
+          status: false,
+          message: "Organization not registered. Please register it first.",
+        });
+      }
+
+      organizationId = organization._id;
+    }
+
+    // Hash password
     let hashedPassword;
     try {
       hashedPassword = await bcrypt.hash(password, 10);
@@ -43,13 +82,21 @@ exports.signup = async (req, res) => {
       });
     }
 
-    // Create new user with all fields
+    // Create new user
     const newUser = new User({
       name,
       username,
       email,
       password: hashedPassword,
-      role
+      role,
+      skills: role === "Student" ? (skills || []) : [], // Only students have skills
+      bio: bio || '',
+      linkedin: linkedin || '',
+      github: github || '',
+      institute: role === "Student" ? institute : '', // Only students have institute
+      designation: role === "Student" ? (designation || 'Student') : '', // Only students have designation
+      profilePicture: profilePicture || '',
+      organization: organizationId, // 👈 attach org ID if organizer
     });
 
     await newUser.save();
@@ -66,8 +113,6 @@ exports.signup = async (req, res) => {
     });
   }
 };
-
-
 
 
 exports.login = async (req, res) => {
@@ -90,15 +135,16 @@ exports.login = async (req, res) => {
         const token = jwt.sign(payload, process.env.JWT_SECRET, { expiresIn: "2h" });
   
         res.cookie("token", token, {
-          httpOnly: true, // JS can't access
-          secure: false, // set to false for localhost, true for HTTPS in prod
-          sameSite: "lax", // allows cross-origin POST from your frontend (in most cases)
-          maxAge: 24 * 60 * 60 * 1000,
+          httpOnly: true,            // Prevents JavaScript access to cookie
+          secure: false,             // false for localhost (no HTTPS)
+          sameSite: "lax",           // Allows cross-origin requests like login
+          maxAge: 24 * 60 * 60 * 1000, // 1 day
         });
+
         
         
   
-        return res.status(200).json({ success: true, message: "Logged in successfully" });
+        return res.status(200).json({ success: true, message: "Logged in successfully"});
       } else {
         return res.status(403).json({ success: false, message: "Invalid password" });
       }
@@ -240,4 +286,170 @@ exports.sendOTP = async (req, res) => {
       res.status(500).json({ message: 'Server error during OTP verification' });
     }
   };
+
+  exports.getLoggedInUserProfile = async (req, res) => {
+    try {
+      const userId = req.user.id;
+  
+      const user = await User.getProfile(userId);
+  
+      if (!user) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+  
+      res.status(200).json({
+        success: true,
+        user,
+      });
+    } catch (error) {
+      console.error("Error fetching logged-in user profile:", error);
+      res.status(500).json({
+        success: false,
+        message: "Something went wrong while fetching profile",
+      });
+    }
+  };
+
+  exports.updateProfile = async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const { bio, skills, linkedin, github } = req.body;
+  
+      const updatedUser = await User.findByIdAndUpdate(
+        userId,
+        {
+          bio,
+          skills,
+          linkedin,
+          github,
+        },
+        { new: true }
+      ).select("-password"); // Exclude password
+  
+      if (!updatedUser) {
+        return res.status(404).json({
+          success: false,
+          message: "User not found",
+        });
+      }
+  
+      res.status(200).json({
+        success: true,
+        message: "Profile updated successfully",
+        user: updatedUser,
+      });
+    } catch (err) {
+      console.error("Error updating profile:", err);
+      res.status(500).json({
+        success: false,
+        message: "Failed to update profile",
+      });
+    }
+  };
+
+  exports.viewUserFriends = async (req, res) => {
+    try {
+      const userId = req.user._id; // Assuming you're using JWT authentication or some form of user context
+  
+      // Fetch the user with populated friends
+      const user = await User.findById(userId).populate('friends', 'name username email profilePicture'); // Populate friends with necessary fields
+  
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+  
+      // Send the list of friends
+      res.status(200).json(user.friends);
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Error fetching friends" });
+    }
+  };
+
+  exports.deleteFriend = async (req, res) => {
+    try {
+      const userId = req.user._id; // Assuming you're using JWT authentication or some form of user context
+      const friendId = req.params.friendId; // Friend's ID to delete
+  
+      // Ensure the current user and the friend exist
+      const user = await User.findById(userId);
+      const friend = await User.findById(friendId);
+  
+      if (!user || !friend) {
+        return res.status(404).json({ message: "User or Friend not found" });
+      }
+  
+      // Remove the friend from the current user's friends list
+      await User.findByIdAndUpdate(userId, { $pull: { friends: friendId } });
+  
+      // Remove the current user from the friend's friends list
+      await User.findByIdAndUpdate(friendId, { $pull: { friends: userId } });
+  
+      res.status(200).json({ message: "Friend removed successfully" });
+    } catch (error) {
+      console.error(error);
+      res.status(500).json({ message: "Error removing friend" });
+    }
+  };
+
+  exports.getUsersFromYourInstitute = async (req, res) => {
+    try {
+      const userId = req.user.id;
+      const user = await User.findById(userId);
+  
+      if (!user) return res.status(404).json({ error: "User not found." });
+  
+      const users = await User.find({
+        _id: { $ne: userId }, // exclude self
+        institute: user.institute,
+      }).select("-password -resetPasswordToken -resetPasswordExpires -resetOTP -otpExpiry");
+  
+      res.status(200).json({ users });
+    } catch (error) {
+      res.status(500).json({ error: "Error fetching users from your institute." });
+    }
+  };
+
+  exports.getUserParticipatedHackathons = async (req, res) => {
+    try {
+      const userId = req.params.userId; // or get from req.user if using auth middleware
+  
+      // Find user and populate the hackathonsParticipated field with hackathon details
+      const user = await User.findById(userId).populate("hackathonsParticipated");
+  
+      if (!user) {
+        return res.status(404).json({ success: false, message: "User not found" });
+      }
+  
+      res.status(200).json({
+        success: true,
+        hackathons: user.hackathonsParticipated,
+      });
+    } catch (err) {
+      console.error("Error fetching user's participated hackathons:", err);
+      res.status(500).json({ success: false, message: "Server error" });
+    }
+  };
+
+  
+exports.getAllUsers = async (req, res) => {
+  try {
+    console.log("here");
+    const users = await User.find()
+      .select("name username email createdAt role") // select fields + createdAt
+      .populate({
+        path: "organization",
+        select: "name website"
+      });
+      console.log("reaching here");
+      console.log("users", users)
+    res.status(200).json({ users });
+  } catch (error) {
+    console.error("Error fetching users:", error);
+    res.status(500).json({ error: "Failed to fetch users" });
+  }
+};
 
