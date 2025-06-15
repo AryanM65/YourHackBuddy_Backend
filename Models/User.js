@@ -48,7 +48,7 @@ const userSchema = new mongoose.Schema({
   },
 
   profilePicture: {
-    type: String,
+    type: String, //comes from the cloudinary url
     default: "",
   },
 
@@ -100,7 +100,7 @@ userSchema.statics.getProfile = async function (userId) {
     .select("-password -resetPasswordToken -resetPasswordExpires -resetOTP -otpExpiry") // Exclude sensitive fields
     .populate({
       path: "hackathonsParticipated",
-      select: "title date",
+      select: "title date startDate endDate",
     })
     .populate({
       path: "currentTeam",

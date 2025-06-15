@@ -2,28 +2,34 @@ const Hackathon = require("../Models/Hackathon");
 const User = require("../Models/User");
 const Organization = require("../Models/Organization");
 const Team= require('../Models/Team');
+const { uploadOnCloudinary } = require('../utils/cloudinary');
+
 
 
 exports.getAllHackathons = async (req, res) => {
-    try {
-      const hackathons = await Hackathon.find()
-        .populate({
-          path: "organizer",
-          select: "name email", // Fields from User or Organization
-          // no need to specify `model` function if refPath is already in schema
-        })
-        // Optional, if you want team data
-  
-      res.status(200).json({ success: true, data: hackathons });
-    } catch (error) {
-      console.error("Error fetching hackathons:", error);
-      res.status(500).json({ success: false, message: "Failed to fetch hackathons" });
-    }
-  };
+  try {
+    const hackathons = await Hackathon.find()
+      .populate("organizer") // full object
+      //.populate("teams");    // optional
+
+    res.status(200).json({
+      success: true,
+      count: hackathons.length,
+      data: hackathons,
+    });
+  } catch (error) {
+    console.error("Error fetching hackathons:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
+
   
   
 
   exports.addHackathon = async (req, res) => {
+    console.log("req.body", req.body);
+    console.log("req.file", req.file);
     try {
       const { 
         title, 
@@ -52,6 +58,7 @@ exports.getAllHackathons = async (req, res) => {
         !location || !mode || !description || 
         !timeline || !Array.isArray(timeline) || timeline.length === 0
       ) {
+        console.log("here")
         return res.status(400).json({ message: "Missing required fields" });
       }
   
@@ -76,7 +83,17 @@ exports.getAllHackathons = async (req, res) => {
       if (policies && !Array.isArray(policies)) {
         return res.status(400).json({ message: "Policies must be an array" });
       }
-  
+
+      // Upload banner if provided
+      console.log("reached here finally")
+      let bannerUrl = null;
+      if (req.file) {
+        const result = await uploadOnCloudinary(req.file.path, {
+          folder: "hackathon_banners"
+        });
+        bannerUrl = result.secure_url;
+      }
+      
       const newHackathon = new Hackathon({
         title,
         description,
@@ -91,7 +108,7 @@ exports.getAllHackathons = async (req, res) => {
         maxTeamSize,
         minTeamSize,
         timeline,
-        banner: banner || null,
+        banner: bannerUrl || null,
         rules: rules || [],
         policies: policies || [],
       });
@@ -108,29 +125,34 @@ exports.getAllHackathons = async (req, res) => {
   
   
 
-  exports.getHackathonById = async (req, res) => {
-    try {
-      const hackathon = await Hackathon.findById(req.params.id);
-      if (!hackathon) {
-        return res.status(404).json({ success: false, message: "Hackathon not found" });
-      }
-  
-      const leader = {
-        id: req.user._id,
-        name: req.user.name,
-        email: req.user.email,
-      };
-  
-      res.status(200).json({
-        success: true,
-        data: hackathon,
-        leader,
-      });
-    } catch (error) {
-      console.error("Error fetching hackathon:", error);
-      res.status(500).json({ success: false, message: "Server error" });
+exports.getHackathonById = async (req, res) => {
+  try {
+    const hackathon = await Hackathon.findById(req.params.id)
+      .populate("organizer") // ✅ Populate full organizer (User or Organization)
+      // .populate("teams")     // ✅ Optionally include teams
+      // .populate("feedbacks"); // ✅ Optionally include feedbacks
+
+    if (!hackathon) {
+      return res.status(404).json({ success: false, message: "Hackathon not found" });
     }
-  };
+
+    const leader = {
+      id: req.user._id,
+      name: req.user.name,
+      email: req.user.email,
+    };
+
+    res.status(200).json({
+      success: true,
+      data: hackathon,
+      leader,
+    });
+  } catch (error) {
+    console.error("Error fetching hackathon:", error);
+    res.status(500).json({ success: false, message: "Server error" });
+  }
+};
+
 
   exports.getMyHackathons = async (req, res) => {
     try {

@@ -233,7 +233,7 @@ exports.generateJoinCode = async (req, res) => {
       const teams = await Team.find({ hackathon: hackathonId })
         .populate("teamLeader", "name username email institute") // Populate team leader details
         .populate("members", "name username email institute") // Populate team members details
-        .select("name teamLeader members isRegistered joinCode shortlisted") // Select fields to return
+        .select("name teamLeader members isRegistered joinCode shortlisted createdAt") // Select fields to return
   
       // Return response with fetched teams
       return res.status(200).json({

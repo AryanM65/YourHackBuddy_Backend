@@ -5,7 +5,7 @@ const Hackathon = require("../Models/Hackathon");
 exports.submitFeedback = async (req, res) => {
   try {
     const { hackathonId } = req.params;
-    const { rating, comments } = req.body;
+    const { comments } = req.body;
     const userId = req.user.id;
 
     // Prevent duplicate feedback by the same user
@@ -17,7 +17,6 @@ exports.submitFeedback = async (req, res) => {
     const feedback = await Feedback.create({
       hackathon: hackathonId,
       user: userId,
-      rating,
       comments,
     });
 

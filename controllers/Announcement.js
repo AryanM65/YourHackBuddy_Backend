@@ -51,3 +51,44 @@ exports.addAnnouncement = async (req, res) => {
   }
 };
 
+
+exports.getannoucement = async (req, res) => {
+  try {
+    const userRole = req.user.role;
+
+    let filter = {};
+
+    if (userRole === "Admin") {
+      filter = {}; // Admins can view all
+    } else if (userRole === "Organization") {
+      filter = {
+        $or: [
+          { targetAudience: "All" },
+          { targetAudience: "Organizers" }
+        ]
+      };
+    } else {
+      // Student or other default roles
+      filter = {
+        $or: [
+          { targetAudience: "All" },
+          { targetAudience: "Users" }
+        ]
+      };
+    }
+
+    const announcements = await Announcement.find(filter).sort({ createdAt: -1 });
+
+    return res.status(200).json({
+      success: true,
+      data: announcements,
+    });
+  } catch (error) {
+    console.error("Error in getannoucement:", error);
+    return res.status(500).json({
+      success: false,
+      message: "Server Error",
+    });
+  }
+};
+

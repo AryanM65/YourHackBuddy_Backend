@@ -1,11 +1,12 @@
 const express = require('express');
 const router = express.Router();
 
-const {login, signup, logout, forgotPassword, resetPassword, sendOTP, verifyOTP, viewUserFriends, deleteFriend, getLoggedInUserProfile, updateProfile, getUsersFromYourInstitute, getUserParticipatedHackathons, getAllUsers} = require('../controllers/Auth');
+const {login, signup, logout, forgotPassword, resetPassword, sendOTP, verifyOTP, viewUserFriends, deleteFriend, getLoggedInUserProfile, updateProfile, getUsersFromYourInstitute, getUserParticipatedHackathons, getAllUsers,  fetchUserProfile} = require('../controllers/Auth');
 const {auth, isStudent, isAdmin} = require('../middlewares/auth');
+const { upload } = require("../middlewares/multer"); // adjust path
 
 router.post('/login', login);
-router.post('/signup', signup);
+router.post('/signup', upload.single("profilePicture"), signup);
 router.post("/logout", logout);
 
 router.get('/test', auth, (req, res) => {
@@ -38,11 +39,12 @@ router.post('/verify-otp', verifyOTP);
 
 router.get("/users/:userId/hackathons", getUserParticipatedHackathons);
 router.get('/profile', auth, getLoggedInUserProfile)
-router.put("/profile/edit", auth, updateProfile);
+router.put("/profile/edit", auth, upload.single("profilePicture"), updateProfile);
 router.get('/getfriends', auth, viewUserFriends);
 router.delete("/friends/:friendId", auth, deleteFriend);
 router.get("/from-institute", auth, getUsersFromYourInstitute);
 router.get("/admin/users", auth, isAdmin, getAllUsers);
+router.get('/profile/:userId', fetchUserProfile)
 
 
 module.exports = router;

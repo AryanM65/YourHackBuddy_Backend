@@ -14,10 +14,6 @@ const complaintSchema = new mongoose.Schema({
   },
   againstId: {
     type: mongoose.Schema.Types.ObjectId,
-    required: function () {
-      return this.againstType !== 'System';
-    },
-    refPath: 'againstType',
   },
   message: {
     type: String,
@@ -25,7 +21,7 @@ const complaintSchema = new mongoose.Schema({
   },
   status: {
     type: String,
-    enum: ['pending', 'reviewed', 'resolved', 'rejected'],
+    enum: ['pending', 'resolved'],
     default: 'pending',
   },
   adminResponse: {

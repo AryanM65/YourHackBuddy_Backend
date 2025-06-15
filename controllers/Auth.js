@@ -6,6 +6,8 @@ const jwt = require('jsonwebtoken');
 const crypto = require('crypto');
 const sendEmail = require('../utils/sendEmail');
 const {generateOTP, generateToken} = require('../utils/tokenUtils');
+const { uploadOnCloudinary } = require('../utils/cloudinary'); // Adjust the path
+
 
 require('dotenv').config();
 
@@ -82,6 +84,15 @@ exports.signup = async (req, res) => {
       });
     }
 
+    let profilePictureUrl = '';
+
+    if (req.file) {
+      const cloudinaryResult = await uploadOnCloudinary(req.file.path); // multer saves to disk
+      if (cloudinaryResult) {
+        profilePictureUrl = cloudinaryResult.secure_url;
+      }
+    }
+
     // Create new user
     const newUser = new User({
       name,
@@ -95,11 +106,22 @@ exports.signup = async (req, res) => {
       github: github || '',
       institute: role === "Student" ? institute : '', // Only students have institute
       designation: role === "Student" ? (designation || 'Student') : '', // Only students have designation
-      profilePicture: profilePicture || '',
+      profilePicture: profilePictureUrl || '',
       organization: organizationId, // 👈 attach org ID if organizer
     });
 
     await newUser.save();
+
+    try {
+      await sendEmail(
+        email,
+        'Welcome to YourHackBuddy 🎉',
+        `Hello ${name},\n\nWelcome to YourHackBuddy!\nWe're excited to have you on board.\n\nBest,\nThe YourHackBuddy Team`
+      );
+    } catch (emailErr) {
+      console.error("Error sending welcome email:", emailErr);
+      // Don't return error here to avoid blocking signup flow
+    }
 
     return res.status(200).json({
       status: true,
@@ -260,32 +282,42 @@ exports.sendOTP = async (req, res) => {
   };
 
   exports.verifyOTP = async (req, res) => {
-    const { email, otp } = req.body;
-  
-    try {
-      const user = await User.findOne({ email });
-      if (!user || !user.resetOTP || !user.otpExpiry)
-        return res.status(400).json({ message: 'Invalid request' });
-  
-      if (user.resetOTP !== otp || Date.now() > user.otpExpiry)
-        return res.status(400).json({ message: 'Invalid or expired OTP' });
-  
-      // Clear OTP after verification
-      user.resetOTP = undefined;
-      user.otpExpiry = undefined;
-      await user.save();
-  
-      // Generate JWT token (adjust payload as needed)
-      const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
-        expiresIn: '7d',
-      });
-  
-      res.json({ message: 'OTP verified, login successful', token, user });
-    } catch (err) {
-      console.error(err);
-      res.status(500).json({ message: 'Server error during OTP verification' });
+  const { email, otp } = req.body;
+
+  try {
+    const user = await User.findOne({ email });
+    if (!user || !user.resetOTP || !user.otpExpiry) {
+      return res.status(400).json({ message: 'Invalid request' });
     }
-  };
+
+    if (user.resetOTP !== otp || Date.now() > user.otpExpiry) {
+      return res.status(400).json({ message: 'Invalid or expired OTP' });
+    }
+
+    // Clear OTP after verification
+    user.resetOTP = undefined;
+    user.otpExpiry = undefined;
+    await user.save();
+
+    // Generate JWT token
+    const token = jwt.sign({ id: user._id }, process.env.JWT_SECRET, {
+      expiresIn: '7d',
+    });
+
+    // Set token in HTTP-only cookie
+    res.cookie("token", token, {
+      httpOnly: true,            // Prevents JavaScript access to cookie
+      secure: false,             // Set to true in production (HTTPS)
+      sameSite: "lax",           // Good balance of CSRF protection and usability
+      maxAge: 24 * 60 * 60 * 1000, // 1 day
+    });
+
+    res.json({ message: 'OTP verified, login successful', user });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ message: 'Server error during OTP verification' });
+  }
+};
 
   exports.getLoggedInUserProfile = async (req, res) => {
     try {
@@ -453,3 +485,18 @@ exports.getAllUsers = async (req, res) => {
   }
 };
 
+exports.fetchUserProfile = async (req, res) => {
+  try {
+    const { userId } = req.params;
+
+    const profile = await User.getProfile(userId);
+    if (!profile) {
+      return res.status(404).json({ success: false, message: "User not found" });
+    }
+
+    return res.status(200).json({ success: true, data: profile });
+  } catch (error) {
+    console.error("Error fetching user profile:", error);
+    return res.status(500).json({ success: false, message: "Server error" });
+  }
+};
