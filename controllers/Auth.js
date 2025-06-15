@@ -164,7 +164,6 @@ exports.login = async (req, res) => {
         });
 
         
-        
   
         return res.status(200).json({ success: true, message: "Logged in successfully"});
       } else {
@@ -177,23 +176,24 @@ exports.login = async (req, res) => {
   
   exports.logout = (req, res) => {
     try {
-        res.clearCookie("token", {
-            httpOnly: true,
-            secure: true, // Set to true in production
-            sameSite: "strict",
-        });
+      res.clearCookie("token", {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production", // ✅ true on Render
+        sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax", // ✅ match login cookie
+      });
 
-        return res.status(200).json({
-            success: true,
-            message: "Logged out successfully",
-        });
+      return res.status(200).json({
+        success: true,
+        message: "Logged out successfully",
+      });
     } catch (error) {
-        return res.status(500).json({
-            success: false,
-            message: "Error logging out",
-        });
+      return res.status(500).json({
+        success: false,
+        message: "Error logging out",
+      });
     }
-};
+  };
+
 
 
 
