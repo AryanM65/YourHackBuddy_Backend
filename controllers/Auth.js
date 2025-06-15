@@ -158,8 +158,8 @@ exports.login = async (req, res) => {
   
         res.cookie("token", token, {
           httpOnly: true,            // Prevents JavaScript access to cookie
-          secure: false,             // false for localhost (no HTTPS)
-          sameSite: "lax",           // Allows cross-origin requests like login
+          secure: process.env.NODE_ENV === "production", // true on Render
+          sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax",          // Allows cross-origin requests like login
           maxAge: 24 * 60 * 60 * 1000, // 1 day
         });
 
