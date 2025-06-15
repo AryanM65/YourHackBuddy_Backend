@@ -306,11 +306,12 @@ exports.sendOTP = async (req, res) => {
 
     // Set token in HTTP-only cookie
     res.cookie("token", token, {
-      httpOnly: true,            // Prevents JavaScript access to cookie
-      secure: false,             // Set to true in production (HTTPS)
-      sameSite: "lax",           // Good balance of CSRF protection and usability
+      httpOnly: true, // Prevents JavaScript access to cookie
+      secure: process.env.NODE_ENV === "production", // true only on production
+      sameSite: process.env.NODE_ENV === "production" ? "None" : "Lax", // allows cross-origin in production
       maxAge: 24 * 60 * 60 * 1000, // 1 day
     });
+
 
     res.json({ message: 'OTP verified, login successful', user });
   } catch (err) {
